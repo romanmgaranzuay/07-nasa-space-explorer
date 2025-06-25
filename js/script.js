@@ -78,12 +78,74 @@ button.addEventListener('click', () => {
             // Add the image to the gallery
             gallery.innerHTML += imageHtml;
           }
+          else if (item.media_type === 'video' && item.url.includes('youtube.com')) {
+            // If the media is a YouTube video, show a thumbnail and play icon
+
+            // Get the YouTube video ID from the URL
+            // Some YouTube URLs use /embed/VIDEO_ID or /watch?v=VIDEO_ID
+            let videoId = null;
+            try {
+              const urlObj = new URL(item.url);
+              // If the URL has a 'v' parameter (like /watch?v=VIDEO_ID)
+              videoId = urlObj.searchParams.get('v');
+              // If not, try to get the ID from the pathname (like /embed/VIDEO_ID)
+              if (!videoId && urlObj.pathname.includes('/embed/')) {
+                videoId = urlObj.pathname.split('/embed/')[1];
+              }
+            } catch (e) {
+              // If URL parsing fails, do nothing
+            }
+
+            // Only show the thumbnail if we have a valid videoId
+            if (videoId) {
+              // This URL gives you the preview image for the video
+              const thumbnailUrl = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+
+              // SVG play icon (you can change the fill color)
+              const playIconSVG = `
+                <svg width="64" height="64" viewBox="0 0 64 64" style="
+                  position:absolute;
+                  top:35%;
+                  left:50%;
+                  transform:translate(-50%,-50%);
+                  pointer-events:none;
+                  " xmlns="http://www.w3.org/2000/svg">
+                  <polygon points="14,8 58,32 14,56" fill="white"/>
+                </svg>
+              `;
+
+              // Create HTML for the video thumbnail with a play icon
+              const videoHtml = `
+                <div class="gallery-item youtube-thumb" style="cursor:pointer; position:relative;">
+                  <img src="${thumbnailUrl}" alt="${item.title}" style="width:340px; height:200px; object-fit:cover;" />
+                  ${playIconSVG}
+                  <h3>${item.title}</h3>
+                  <p>${item.date}</p>
+                  <!-- <p>${item.explanation}</p> -->
+                </div>
+              `;
+              // Add the video thumbnail to the gallery
+              gallery.innerHTML += videoHtml;
+            }
+          }
+          else {
+            // For other media types, do nothing (or you can add a message)
+          }
         });
         // Add click event listeners to gallery items to open modal
         const galleryItems = document.querySelectorAll('.gallery-item');
         let imageIndex = 0;
         data.forEach(item => {
+          // If the item is an image, add click event to open modal
           if (item.media_type === 'image') {
+            const galleryItem = galleryItems[imageIndex];
+            galleryItem.onclick = function() {
+              showModal(item);
+            };
+            imageIndex++;
+          }
+          // If the item is a YouTube video, add click event to open modal
+          else if (item.media_type === 'video' && item.url.includes('youtube.com')) {
             const galleryItem = galleryItems[imageIndex];
             galleryItem.onclick = function() {
               showModal(item);
@@ -116,7 +178,8 @@ function showModal(item) {
     modal.innerHTML = `
       <div class="modal-content">
         <span class="close-button">&times;</span>
-        <img class="modal-img" src="" alt="" />
+        <img class="modal-img" src="" alt="" style="display:none;" />
+        <div class="modal-video" style="display:none;"></div>
         <h2 class="modal-title"></h2>
         <p class="modal-date"></p>
         <p class="modal-explanation"></p>
@@ -124,14 +187,60 @@ function showModal(item) {
     `;
     document.body.appendChild(modal);
   }
-  // Set modal content
-  modal.querySelector('.modal-img').src = item.hdurl || item.url;
-  modal.querySelector('.modal-img').alt = item.title;
+
+  // Hide both image and video by default
+  const modalImg = modal.querySelector('.modal-img');
+  const modalVideo = modal.querySelector('.modal-video');
+  modalImg.style.display = 'none';
+  modalVideo.style.display = 'none';
+
+  // Show image or YouTube video embed
+  if (item.media_type === 'image') {
+    // Show the image in the modal
+    modalImg.src = item.hdurl || item.url;
+    modalImg.alt = item.title;
+    modalImg.style.display = 'block';
+    modalVideo.innerHTML = '';
+  } else if (item.media_type === 'video' && item.url.includes('youtube.com')) {
+    // Get YouTube video ID
+    let videoId = null;
+    try {
+      const urlObj = new URL(item.url);
+      videoId = urlObj.searchParams.get('v');
+      if (!videoId && urlObj.pathname.includes('/embed/')) {
+        videoId = urlObj.pathname.split('/embed/')[1];
+      }
+    } catch (e) {
+      // If URL parsing fails, do nothing
+    }
+    if (videoId) {
+      // Show YouTube video embed using an iframe
+      const embedUrl = `https://www.youtube.com/embed/${videoId}`;
+      // The iframe allows the user to play the video directly in the modal
+      modalVideo.innerHTML = `
+        <iframe 
+          width="600" 
+          height="360" 
+          src="${embedUrl}" 
+          frameborder="0" 
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+          allowfullscreen 
+          style="display:block; margin:auto; max-width:100%;">
+        </iframe>
+      `;
+      modalVideo.style.display = 'block';
+      modalImg.style.display = 'none';
+    }
+  }
+
+  // Set modal text content
   modal.querySelector('.modal-title').textContent = item.title;
   modal.querySelector('.modal-date').textContent = item.date;
   modal.querySelector('.modal-explanation').textContent = item.explanation;
+
   // Show the modal
   modal.style.display = 'flex';
+
   // Close modal on button click
   modal.querySelector('.close-button').onclick = function() {
     modal.style.display = 'none';
